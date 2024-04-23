@@ -97,6 +97,7 @@ class SemanticCostmapRule(Node):
                 F"{[self.rule_type, self.direction_type, self.cost_type, self.velocity_segments, self.min_range]}"
             )
         self._check_semantics()
+        self.velocity_duration = self.get_parameter("velocity_duration").get_parameter_value().double_value
         # TODO: We currently don't check all costmap params here - costmap_frame!
         self.resolution = self.get_parameter("resolution").get_parameter_value().double_value
         self.width = self.get_parameter("width").get_parameter_value().integer_value
@@ -131,6 +132,7 @@ class SemanticCostmapRule(Node):
                 ('min_range', 0),  # the start point distance (on costmap) from origin for a velocity of unit vector
                 ('velocity_segments', 10),  # number of costs to assign to a velocity.
                 # semantic classification params
+                ('velocity_duration', 1.0),  # the duration for which the costs are calculated. Effectively velocity multiplier
                 ('semantic_classification', 'binary'),
                 ('dynamic_objects', ['person', 'human', 'cat', 'dog', 'car', 'truck', 'bus']),
                 ('fast_objects', ['car', 'truck', 'bus']),
@@ -145,7 +147,7 @@ class SemanticCostmapRule(Node):
                 # we use integer buffer params. see CircularTimeBuffer for more precise options
                 ('idleness_falloff', 0.5), # this is actually cost calculation param, but useless if no buffer is used
                 ('idleness_range', 0), # This is actually mostly for 'custom' cost_type - ignoring circular movement  # TODO: param descriptor for float values
-                ('use_obstacle_buffer', True),
+                ('use_obstacle_buffer', False),
                 ('obs_buffer_size', 3),
                 ('obs_buffer_period', 5),
                 ('use_costmap_buffer', False),
@@ -454,7 +456,6 @@ class SemanticCostmapRule(Node):
             self.get_logger().info(f" Created basis for map size: {direction_costs}")
 
         if self.direction_type == 'front':
-
             for obstacle in self.obstacles:
                 trajectory_costs = self.calculate_costs_along_trajectory(obstacle.position, obstacle.velocity, costs, is_tuple=False)
                 trajectory_costs = self.correct_trajectory_to_object_size(obstacle, trajectory_costs)
@@ -481,7 +482,27 @@ class SemanticCostmapRule(Node):
             return direction_costs
 
         if self.direction_type == 'sides':
-            raise NotImplementedError("TO be implemented soon")
+            # this is copy paste from 'front' except calculating the velocities for each side in a loop
+            # TODO: all this needs is to calculate costs with a vector x = -y, y or -y and y = x, -x or -x for 90, 270, 180 around z? is around z correct?
+            for obstacle in self.obstacles:
+                trajectory_costs = {}
+                right_vector = Vector3
+                left_vector = Vector3
+                right_vector.x, right_vector.y = obstacle.velocity.y * -1, obstacle.velocity.x
+                left_vector.x, left_vector.y = obstacle.velocity.y, obstacle.velocity.x * -1
+                sides = [obstacle.velocity, left_vector, right_vector]
+                for side_velocity in sides:
+                    side_costs = self.calculate_costs_along_trajectory(obstacle.position, side_velocity, costs, is_tuple=False)
+                    side_costs = self.correct_trajectory_to_object_size(obstacle, side_costs)
+                    trajectory_costs.update(side_costs)
+                # TODO: does this work?
+                self.check_obstacle_attributes(obstacle, border_attributes, size_attributes, trajectory_costs, direction_costs)
+                direction_costs = self.update_obstacle_dict(direction_costs, obstacle, trajectory_costs, include_original_in_value_dict=True)
+
+            if self.testing:
+                self.get_logger().info(f"\n\n\n  I have final sector directions: {direction_costs} from {len(self.obstacles)} obstacles: ")
+            return direction_costs
+            # raise NotImplementedError("I'm not sure this functionality is useful. We may not implement this after all")
         if self.direction_type == 'sector':
             raise NotImplementedError("TO be implemented soon")
         if self.direction_type == 'gradient':
@@ -668,6 +689,7 @@ class SemanticCostmapRule(Node):
         # Initialize list to store costs
         costs_along_trajectory = {}
         direction, magnitude = self.normalize_vector(velocity)
+        magnitude = magnitude * self.velocity_duration
         # vector_costs = self.costs_to_vector(velocity, costs, is_tuple=is_tuple)  # maps cost to vector not point
         # Calculate cost for each point along the trajectory
         current_point = Point()
@@ -857,6 +879,38 @@ class SemanticCostmapRule(Node):
 
     # def check_cost_length(self, costs, costmap):
     #     len = len(costs)
+    def check_obstacle_attributes(self, obstacle, border_attributes, size_attributes, trajectory_costs, direction_costs):
+        o_size = (obstacle.size.x, obstacle.size.y, obstacle.size.z)
+        # check if borders or biggest object increase - also removes border attributes from trajectory costs
+        for a, i in zip(border_attributes, range(1, len(border_attributes) + 1)):
+            coordinate = trajectory_costs.pop(a)
+            size = o_size[int((i - 1) / 2)]  # gets size in the following order, [0, 0, 1, 1, 2, 2]
+            if i % 2:  # min
+                if size < direction_costs[size_attributes[i - 1]]:
+                    direction_costs[size_attributes[i - 1]] = size
+                if coordinate < direction_costs[a]:
+                    direction_costs[a] = coordinate
+            else:  # max
+                if size > direction_costs[size_attributes[i - 1]]:
+                    direction_costs[size_attributes[i - 1]] = size
+                if coordinate > direction_costs[a]:
+                    direction_costs[a] = coordinate
+
+    @staticmethod
+    def update_obstacle_dict(dictionary, obstacle, value, include_original_in_value_dict=False):
+        """
+        Update a dictionary where the keys are
+        @param dictionary: Dictionary to update, where keys are obstacle uuid-s
+        @param obstacle: the key to be updatedoriginal
+        @param value: value at key
+        @include_original_in_value_dict boolean: if value is a dict, it may be useful to also pass the full object there
+        @return: dictionary with the updated value
+        """
+        obstacle_uuid = uuid.UUID(bytes=bytes(obstacle.uuid.uuid))
+        if include_original_in_value_dict:
+            value.update({'original_obstacle': obstacle})
+        dictionary[obstacle_uuid] = value
+        return dictionary
 
 
 def main(args=None):
