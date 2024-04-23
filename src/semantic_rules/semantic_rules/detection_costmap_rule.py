@@ -131,8 +131,10 @@ class SemanticCostmapRule(Node):
                 ('falloff', 0.5),
                 ('min_range', 0),  # the start point distance (on costmap) from origin for a velocity of unit vector
                 ('velocity_segments', 10),  # number of costs to assign to a velocity.
+                ('velocity_duration', 1.0),
+                # the duration for which the costs are calculated. Effectively velocity multiplier
+                # TODO: semantic classification params may all be removed, as it is handled by the converter node
                 # semantic classification params
-                ('velocity_duration', 1.0),  # the duration for which the costs are calculated. Effectively velocity multiplier
                 ('semantic_classification', 'binary'),
                 ('dynamic_objects', ['person', 'human', 'cat', 'dog', 'car', 'truck', 'bus']),
                 ('fast_objects', ['car', 'truck', 'bus']),
@@ -143,6 +145,7 @@ class SemanticCostmapRule(Node):
                 ('slow_falloff', 0.75),
                 ('fast_base_cost', Parameter.Type.DOUBLE),
                 ('slow_base_cost', Parameter.Type.DOUBLE),
+                # TODO: should this be handled solely in the Hungarian tracker node?
                 # buffer params - buffers are for 1) obstacles 2) costmap or 3) global map
                 # we use integer buffer params. see CircularTimeBuffer for more precise options
                 ('idleness_falloff', 0.5), # this is actually cost calculation param, but useless if no buffer is used
@@ -165,7 +168,7 @@ class SemanticCostmapRule(Node):
                 # ('origin', [position, orientation]),
                 # custom costmap params
                 ('vel_filter', [0.1, 20.0]),  # [min, max]
-                ('height_filter', [-2.0, 2.0]),
+                ('height_filter', [-2.0, 2.0]),  # TODO: This is duplicated in the Hungarian tracker?
                 ('cost_filter', Parameter.Type.DOUBLE),
                 # other custom params?
                 # ('global_frame', "camera_link"),  # - what was this??? # TODO: this is definitely necessary - implement
@@ -459,6 +462,7 @@ class SemanticCostmapRule(Node):
             for obstacle in self.obstacles:
                 trajectory_costs = self.calculate_costs_along_trajectory(obstacle.position, obstacle.velocity, costs, is_tuple=False)
                 trajectory_costs = self.correct_trajectory_to_object_size(obstacle, trajectory_costs)
+                # TODO: if 'sector' work, we can replace this with 'check_obstacle_attributes'...
                 o_size = (obstacle.size.x, obstacle.size.y, obstacle.size.z)
                 # check if borders or biggest object increase - also removes border attributes from trajectory costs
                 for a, i in zip(border_attributes, range(1, len(border_attributes)+1)):
@@ -474,6 +478,7 @@ class SemanticCostmapRule(Node):
                             direction_costs[size_attributes[i-1]] = size
                         if coordinate > direction_costs[a]:
                             direction_costs[a] = coordinate
+                # todo: ...and this with 'update_obstacle_dict'
                 obstacle_uuid = uuid.UUID(bytes=bytes(obstacle.uuid.uuid))
                 trajectory_costs.update({'original_obstacle': obstacle})
                 direction_costs[obstacle_uuid] = trajectory_costs
@@ -504,6 +509,9 @@ class SemanticCostmapRule(Node):
             return direction_costs
             # raise NotImplementedError("I'm not sure this functionality is useful. We may not implement this after all")
         if self.direction_type == 'sector':
+            # TODO: NEW PARAMS
+            #  sector-width param (degrees),
+            #  fill policy - sides / sides + center / uniform / size based, if we start to differentiate object regions
             raise NotImplementedError("TO be implemented soon")
         if self.direction_type == 'gradient':
             raise NotImplementedError("TO be implemented soon")
@@ -879,7 +887,8 @@ class SemanticCostmapRule(Node):
 
     # def check_cost_length(self, costs, costmap):
     #     len = len(costs)
-    def check_obstacle_attributes(self, obstacle, border_attributes, size_attributes, trajectory_costs, direction_costs):
+    @staticmethod
+    def check_obstacle_attributes(obstacle, border_attributes, size_attributes, trajectory_costs, direction_costs):
         o_size = (obstacle.size.x, obstacle.size.y, obstacle.size.z)
         # check if borders or biggest object increase - also removes border attributes from trajectory costs
         for a, i in zip(border_attributes, range(1, len(border_attributes) + 1)):
