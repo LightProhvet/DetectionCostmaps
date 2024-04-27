@@ -58,8 +58,7 @@ def generate_launch_description():
     input_image_topic = LaunchConfiguration("input_image_topic")
     input_image_topic_cmd = DeclareLaunchArgument(
         "input_image_topic",
-#        default_value="/camera/rgb/image_raw",  # true default
-        default_value="/camera/color/image_raw",
+        default_value="/camera/rgb/image_raw",
         description="Name of the input image topic")
 
     image_reliability = LaunchConfiguration("image_reliability")

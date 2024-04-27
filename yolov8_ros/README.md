@@ -15,25 +15,35 @@ $ colcon build
 
 ## Usage
 
-### YOLOv8
+### YOLOv8 / YOLOv9
 
 ```shell
 $ ros2 launch yolov8_bringup yolov8.launch.py
+```
+
+```shell
+$ ros2 launch yolov8_bringup yolov9.launch.py
 ```
 
 <p align="center">
   <img src="./docs/rqt_graph_yolov8.png" width="100%" />
 </p>
 
+#### Topics
+
+- **/yolo/detections**: Objects detected by YOLO using the RGB images. Each object contains a bounding boxes and a class name. It may also include a mak or a list of keypoints.
+- **/yolo/tracking**: Objects detected and tracked from YOLO results. Each object is assigned a tracking ID.
+- **/yolo/debug_image**: Debug images showing the detected and tracked objects. They can be visualized with rviz2.
+
 #### Parameters
 
 - **model**: YOLOv8 model (default: yolov8m.pt)
-- **tracker**: tracker file (default: bytetrack.yaml)
+- **tracker**: Tracker file (default: bytetrack.yaml)
 - **device**: GPU/CUDA (default: cuda:0)
-- **enable**: wether to start YOLOv8 enabled (default: True)
-- **threshold**: detection threshold (default: 0.5)
-- **input_image_topic**: camera topic of RGB images (default: /camera/rgb/image_raw)
-- **image_reliability**: reliability for the image topic: 0=system default, 1=Reliable, 2=Best Effort (default: 2)
+- **enable**: Wether to start YOLOv8 enabled (default: True)
+- **threshold**: Detection threshold (default: 0.5)
+- **input_image_topic**: Camera topic of RGB images (default: /camera/rgb/image_raw)
+- **image_reliability**: Reliability for the image topic: 0=system default, 1=Reliable, 2=Best Effort (default: 2)
 
 ### YOLOv8 3D
 
@@ -44,6 +54,13 @@ $ ros2 launch yolov8_bringup yolov8_3d.launch.py
 <p align="center">
   <img src="./docs/rqt_graph_yolov8_3d.png" width="100%" />
 </p>
+
+#### Topics
+
+- **/yolo/detections**: Objects detected by YOLO using the RGB images. Each object contains a bounding boxes and a class name. It may also include a mak or a list of keypoints.
+- **/yolo/tracking**: Objects detected and tracked from YOLO results. Each object is assigned a tracking ID.
+- **/yolo/detections_3d**: 3D objects detected. YOLO results are used to crop the depth images to create the 3D bounding boxes and 3D keypoints.
+- **/yolo/debug_image**: Debug images showing the detected and tracked objects. They can be visualized with rviz2.
 
 #### Parameters
 
@@ -61,6 +78,18 @@ $ ros2 launch yolov8_bringup yolov8_3d.launch.py
 - **depth_image_units_divisor**: divisor to convert the depth image into metres (default: 1000)
 - **target_frame**: frame to transform the 3D boxes (default: base_link)
 - **maximum_detection_threshold**: maximum detection threshold in the z axis (default: 0.3)
+
+## Lifecycle nodes
+
+Previous updates add Lifecycle Nodes support to all the nodes available in the package.
+This implementation tries to reduce the workload in the unconfigured and inactive states by only loading the models and activating the subscriber on the active state.
+
+These are some resource comparisons using the default yolov8m.pt model on a 30fps video stream.
+
+| State       | CPU Usage (i7 12th Gen)  | VRAM Usage  | Bandwidth Usage |
+|-------------|--------------------------|-------------|-----------------|
+| Active   | 40-50% in one core       | 628 MB      | Up to 200 Mbps  |
+| Inactive | ~5-7% in one core        | 338 MB      | 0-20 Kbps       |
 
 ## Demos
 
