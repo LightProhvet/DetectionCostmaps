@@ -6,6 +6,7 @@ from nav2_dynamic_msgs.msg import Obstacle, ObstacleArray
 from visualization_msgs.msg import Marker, MarkerArray
 
 import rclpy
+from rclpy import Parameter
 from rclpy.node import Node
 import colorsys
 from kf_hungarian_tracker.obstacle_class import ObstacleClass
@@ -37,7 +38,7 @@ class KFHungarianTracker(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('global_frame', "camera_link"),
+                ('global_frame', Parameter.Type.STRING),
                 ('process_noise_cov', [2., 2., 0.5]),
                 ('top_down', False),
                 ('death_threshold', 3),
@@ -47,7 +48,7 @@ class KFHungarianTracker(Node):
                 ('height_filter', [-2.0, 2.0]),
                 ('cost_filter', 1.0)
             ])
-        self.global_frame = self.get_parameter("global_frame")._value
+        self.global_frame = self.get_parameter_or('global_frame', None)._value
         self.death_threshold = self.get_parameter("death_threshold")._value
         self.measurement_noise_cov = self.get_parameter("measurement_noise_cov")._value
         self.error_cov_post = self.get_parameter("error_cov_post")._value
@@ -75,6 +76,7 @@ class KFHungarianTracker(Node):
         # setup tf related
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.get_logger().info(f"\n\nUSING GLOBAL FRAME: {self.global_frame}\n\n")
 
     def callback(self, msg):
         '''callback function for detection result'''

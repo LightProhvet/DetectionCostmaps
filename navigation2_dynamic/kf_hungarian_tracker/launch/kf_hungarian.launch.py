@@ -19,7 +19,8 @@ def generate_launch_description():
         parameters=[tracker_config],
         remappings=[
             # ("tracking", "kf_tracking"),
-            ("detection", "/yolo/detections_3d")]
+            # ("detection", "/yolo/detections_3d")
+        ]
     )
 
     return launch.LaunchDescription([kf_hungarian_node])
