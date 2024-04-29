@@ -25,7 +25,13 @@ def generate_launch_description():
     obstacle_topic = "detection"
     detections_topic = "/yolo/detections_3d"
 
-    parameters_dto = []
+    parameters_dto = [{
+        "semantic_classification": "binary",
+        "publisher_count": 1,
+        "min_range": 0.0,
+        "max_range": 20.0,
+        # "dynamic_objects": [],
+    }]
     remappings_dto = [
         ('/obstacles', obstacle_topic),
         ('/detections_3d', detections_topic),
@@ -44,13 +50,15 @@ def generate_launch_description():
     # semantic rules
     # TODO: rule params to config
     rule1_parameters = [{
-        'direction_type': 'front',
+        'direction_type': 'all_sides',
         'cost_type': 'velocity_falloff',
-        'falloff_type': 'abs_percentage',
-        'base_cost': 20.0,
-        'falloff': -0.20,
+        'falloff_type': 'linear',
+        'base_cost': 80.0,
+        'reverse_falloff': True,
+        'falloff': 8.0,
         'min_range': 0,
-        'velocity_segments': 5,
+        'velocity_segments': 10,
+        'velocity_duration': 2.0,
     }]
     rule_tracking_topic = "tracking"
     # detections_topic = "/yolo/detections_3d"
