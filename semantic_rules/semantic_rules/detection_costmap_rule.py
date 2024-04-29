@@ -100,7 +100,7 @@ class SemanticCostmapRule(Node):
                 F"We have set the following parameters: "
                 F"{[self.rule_type, self.direction_type, self.cost_type, self.velocity_segments, self.min_range]}"
             )
-        self._check_semantics()
+        # self._check_semantics()
         self.velocity_duration = self.get_parameter("velocity_duration").get_parameter_value().double_value
         # TODO: We currently don't check all costmap params here - costmap_frame!
         self.resolution = self.get_parameter("resolution").get_parameter_value().double_value
@@ -243,7 +243,7 @@ class SemanticCostmapRule(Node):
 
         # This enables the ordering of rules. In case the order in which the rules are applied are important (shouldnt)
         self.sequence = self.get_parameter("sequence").get_parameter_value().integer_value # TODO: implement
-        self.semantic_classification = self.get_parameter("semantic_classification")._value  # see _check_semantics
+        # self.semantic_classification = self.get_parameter("semantic_classification")._value  # see _check_semantics
 
         # rule type decides if configuring is done via parameters or code: choices = ['parameters', 'code']
         # Use code if both direction and cost are custom, otherwise use parameters
