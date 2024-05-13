@@ -76,16 +76,36 @@ def generate_launch_description():
         remappings=tracker_remappings
     )
 
+    rule_assigner_node = Node(
+        package=package_name,
+        name='rule_assigner_node',
+        executable='rule_assigner_node',
+        parameters=[tracker_config],
+        remappings=tracker_remappings
+    )
+
     rule1 = Node(
             package=package_name, executable='detection_costmap_rule', output='screen',
             parameters=rule1_parameters,
             remappings=rule1_remappings)
+    rule2 = Node(
+            package=package_name, executable='detection_costmap_rule', output='screen',
+            parameters=rule2_parameters,
+            remappings=rule2_remappings)
+    rule3 = Node(
+            package=package_name, executable='detection_costmap_rule', output='screen',
+            parameters=rule3_parameters,
+            remappings=rule3_remappings)
 
     ld = LaunchDescription()
 
     # ld.add_action(model_cmd)
     ld.add_action(detection_converter)
-    ld.add_action(kf_hungarian_node)
+    ld.add_action(kf_hungarian_node1)
+    ld.add_action(kf_hungarian_node2)
+    ld.add_action(kf_hungarian_node3)
     ld.add_action(rule1)
+    ld.add_action(rule2)
+    ld.add_action(rule3)
 
     return ld

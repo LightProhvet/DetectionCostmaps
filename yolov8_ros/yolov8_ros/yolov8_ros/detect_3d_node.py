@@ -48,7 +48,7 @@ class Detect3DNode(LifecycleNode):
         super().__init__("bbox3d_node")
 
         # parameters
-        self.declare_parameter("target_frame", "base_link")
+        self.declare_parameter("target_frame", "map")
         self.declare_parameter("maximum_detection_threshold", 0.3)
         self.declare_parameter("depth_image_units_divisor", 1000)
         self.declare_parameter("depth_image_reliability",
@@ -101,7 +101,7 @@ class Detect3DNode(LifecycleNode):
 
         # subs
         self.depth_sub = message_filters.Subscriber(
-            self, Image, "depth_image",
+            self, Image, "/camera/depth/image_rect_raw",
             qos_profile=self.depth_image_qos_profile)
         self.depth_info_sub = message_filters.Subscriber(
             self, CameraInfo, "depth_info",
@@ -211,15 +211,17 @@ class Detect3DNode(LifecycleNode):
             self.depth_image_units_divisor  # convert to meters
         if not np.any(roi):
             return None
-
-        # find the z coordinate on the 3D BB
-        bb_center_z_coord = depth_image[int(center_y)][int(
-            center_x)] / self.depth_image_units_divisor
-        z_diff = np.abs(roi - bb_center_z_coord)
-        mask_z = z_diff <= self.maximum_detection_threshold
-        if not np.any(mask_z):
+        try:
+            # find the z coordinate on the 3D BB
+            bb_center_z_coord = depth_image[int(center_y)][int(
+                center_x)] / self.depth_image_units_divisor
+            z_diff = np.abs(roi - bb_center_z_coord)
+            mask_z = z_diff <= self.maximum_detection_threshold
+            if not np.any(mask_z):
+                return None
+        except IndexError as e:
+            self.get_logger().error(f"Could not find Z coordinate on the 3D BB: {e}")
             return None
-
         roi_threshold = roi[mask_z]
         z_min, z_max = np.min(roi_threshold), np.max(roi_threshold)
         z = (z_max + z_min) / 2
@@ -285,13 +287,11 @@ class Detect3DNode(LifecycleNode):
         # transform position from image frame to target_frame
         rotation = None
         translation = None
-
         try:
             transform: TransformStamped = self.tf_buffer.lookup_transform(
                 self.target_frame,
                 frame_id,
                 rclpy.time.Time())
-
             translation = np.array([transform.transform.translation.x,
                                     transform.transform.translation.y,
                                     transform.transform.translation.z])
@@ -300,7 +300,7 @@ class Detect3DNode(LifecycleNode):
                                  transform.transform.rotation.x,
                                  transform.transform.rotation.y,
                                  transform.transform.rotation.z])
-
+            # self.get_logger().info(f"Checking transform: {frame_id} ---> {self.target_frame} \ntranslation: {translation}\n\n and rotation: {rotation}")
             return translation, rotation
 
         except TransformException as ex:

@@ -25,6 +25,7 @@ setup(
         'console_scripts': [
                 'detection_costmap_rule = semantic_rules.detection_costmap_rule:main',
                 'detection_converter_node = detection_converter.detection_converter_node:main',
+                'rule_assigner_node = detection_converter.rule_assigner_node:main',
         ],
     },
 )
