@@ -13,7 +13,14 @@ def generate_launch_description():
     obstacle_topic = "detection"
     detections_topic = "/yolo/detections_3d"
 
-    parameters = []
+    parameters = [{
+        "semantic_classification": "all",
+        "publisher_count": 1,
+        "min_range": 0.0,
+        "max_range": 20.0,
+        # "dynamic_objects": [],
+    }]
+
     remappings = [
         ('/obstacles', obstacle_topic),
         ('/detections_3d', detections_topic),

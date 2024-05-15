@@ -7,6 +7,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Point, Pose, Vector3
 from yolov8_msgs.msg import DetectionArray, Detection, BoundingBox3D
 from nav2_dynamic_msgs.msg import ObstacleArray, Obstacle
+from warnings import warn
 # from tf.transformations import euler_from_quaternion
 
 
@@ -21,10 +22,11 @@ class DetectionConverterNode(Node):
                 ('sequence', 1),  # TODO: implement sequence
                 ('publisher_count', 1),
                 # ranges are not used with publisher_count == 1
-                ('min_range', Parameter.Type.DOUBLE),
-                ('max_range', 10.0),
+                ('min_range', 0.0),
+                ('max_range', 100.0),
                 # semantic classification params
-                ('semantic_classification', 'binary'),
+                # "all" and "unary" doesn't check for class
+                ('semantic_classification', 'dynamic_objects'),  # you can use this as the node name?
                 ('dynamic_objects', ['person', 'human', 'cat', 'dog', 'car', 'truck', 'bus'])  # you can also add id-s here
             ])
         """    Subscribers    """
@@ -47,6 +49,7 @@ class DetectionConverterNode(Node):
         self.min_range = self.get_parameter('min_range').get_parameter_value().double_value
         self.max_range = self.get_parameter('max_range').get_parameter_value().double_value
         self.dynamic_objects = set(self.get_parameter('dynamic_objects')._value)
+        self.semantic_classification = self.get_parameter('semantic_classification')._value
 
         """   Publisher creation    """
         self.all_publishers = []
@@ -87,11 +90,11 @@ class DetectionConverterNode(Node):
 
     def check_for_dynamic_objects(self, detections):
         dynamic_detections = []
-        if not len(self.dynamic_objects):
+        if not len(self.dynamic_objects) or self.semantic_classification in ["unary", "all"]:
             return detections
 
         for d in detections:
-            if d.class_id in self.dynamic_objects:
+            if d.class_id in self.dynamic_objects or d.class_name in self.dynamic_objects:
                 dynamic_detections.append(d)
         return dynamic_detections
 
@@ -113,6 +116,7 @@ class DetectionConverterNode(Node):
         # TODO TRANSFORM - see get_transform from yolo_v8 detect_3d_node
         obstacle_msg = ObstacleArray()
         obstacle_msg.header = input_msg.header
+        detection_frame = False
         track_list = []
         for d in detections:  # detection is Detection msg
             obstacle = Obstacle()
@@ -128,9 +132,18 @@ class DetectionConverterNode(Node):
             # We have 3 options for using detection id-s: 1) Do not use - hungarian does everything
             # 2) use with hungarian - hungarian considers these when tracking 3) use only these - trust detection model
             obstacle.detection_id = d.id
-            obstacle.frame_id = detection.frame_id
+            # TODO: #1 What is the correct way to communicate this need to the user - or can we solve this differently?
+            # obstacle.frame_id = detection.frame_id
+            if detection_frame and detection.frame_id != detection_frame:
+                warn(f"Detected mismatch in detection bounding box frames!!!")
+            detection_frame = detection.frame_id
+            obstacle.frame_id = input_msg.header.frame_id # write the original header here, as we replace the msg header
 
             track_list.append(obstacle)
+        # TODO #1
+        if detection_frame:
+            obstacle_msg.header.frame_id = detection_frame
+
         obstacle_msg.obstacles = track_list
         if publisher_index == -1:
             publisher = self.publisher
