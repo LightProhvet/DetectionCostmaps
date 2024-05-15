@@ -41,6 +41,13 @@ def generate_launch_description():
             # ("detection", "/yolo/detections_3d")
     ]
 
+    assigner_parameters = [{
+        'publisher_count': 3,
+        'min_range': 0,
+        'max_range': 6,
+        'semantic_classification': "all",
+
+    }]
     # semantic rules
     # TODO: rule params to config
     rule1_parameters = [{
@@ -51,13 +58,40 @@ def generate_launch_description():
         'falloff': -0.20,
         'min_range': 0,
         'velocity_segments': 5,
+        'velocity_duration': 1.0,
     }]
-    rule_tracking_topic = "tracking"
-    # detections_topic = "/yolo/detections_3d"
+    rule2_parameters = [{
+        'direction_type': 'front',
+        'cost_type': 'velocity_falloff',
+        'falloff_type': 'abs_percentage',
+        'base_cost': 20.0,
+        'falloff': -0.30,
+        'min_range': 0,
+        'velocity_segments': 5,
+        'velocity_duration': 3,
+    }]
+    rule3_parameters = [{
+        'direction_type': 'front',
+        'cost_type': 'direction_falloff',
+        'falloff_type': 'abs_percentage',
+        'base_cost': 20.0,
+        'falloff': -0.50,
+        'min_range': 0,
+        'velocity_segments': 5,
+        'velocity_duration': 5,
+    }]
+
     rule1_remappings = [
-        # ('costmap_publisher', '/costmap/rule1'),
-        ('tracking', rule_tracking_topic),
-        # ('tracking_marker', '/yolo/dgb_kp_markers'),
+        ('costmap_publisher', '/costmap/rule1'),
+        ('tracking', "tracking1"),
+    ]
+    rule2_remappings = [
+        ('costmap_publisher', '/costmap/rule2'),
+        ('tracking', "tracking2"),
+    ]
+    rule3_remappings = [
+        ('costmap_publisher', '/costmap/rule3'),
+        ('tracking', "tracking3"),
     ]
 
     #
@@ -101,9 +135,8 @@ def generate_launch_description():
 
     # ld.add_action(model_cmd)
     ld.add_action(detection_converter)
-    ld.add_action(kf_hungarian_node1)
-    ld.add_action(kf_hungarian_node2)
-    ld.add_action(kf_hungarian_node3)
+    ld.add_action(kf_hungarian_node)
+    ld.add_action(rule_assigner_node)
     ld.add_action(rule1)
     ld.add_action(rule2)
     ld.add_action(rule3)
