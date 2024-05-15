@@ -18,16 +18,7 @@ class DetectionConverterNode(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                # input params
                 ('sequence', 1),  # TODO: implement sequence
-                ('publisher_count', 1),
-                # ranges are not used with publisher_count == 1
-                ('min_range', 0.0),
-                ('max_range', 100.0),
-                # semantic classification params
-                # "all" and "unary" doesn't check for class
-                ('semantic_classification', 'dynamic_objects'),  # you can use this as the node name?
-                ('dynamic_objects', ['person', 'human', 'cat', 'dog', 'car', 'truck', 'bus'])  # you can also add id-s here
             ])
         """    Subscribers    """
         self.subscription = self.create_subscription(
@@ -36,84 +27,25 @@ class DetectionConverterNode(Node):
             self.detection_callback,
             10
         )
-        self.current_position_sub = self.create_subscription(
-            Point,
-            '/current_pos',
-            self.position_callback,
-            10
-        )
 
         self.data = []
         self.current_position = Point()
-        self.publisher_count = self.get_parameter('publisher_count').get_parameter_value().integer_value
-        self.min_range = self.get_parameter('min_range').get_parameter_value().double_value
-        self.max_range = self.get_parameter('max_range').get_parameter_value().double_value
-        self.dynamic_objects = set(self.get_parameter('dynamic_objects')._value)
-        self.semantic_classification = self.get_parameter('semantic_classification')._value
 
         """   Publisher creation    """
-        self.all_publishers = []
-        if self.publisher_count == 1:
-            publisher = self.create_publisher(
-                ObstacleArray,
-                '/obstacles',
-                10
-            )
-            self.all_publishers.append(publisher)
-        else:
-            for i in range(1, self.publisher_count+1):
-                publisher = self.create_publisher(
-                    ObstacleArray,
-                    '/obstacles'+str(i),
-                    10
-                )
-                self.all_publishers.append(publisher)
-        if len(self.all_publishers):
-            self.publisher = self.all_publishers[0]
-        else:
-            raise UserWarning('No publishers created. Did you set a positive publisher count?')
+        self.publisher = self.create_publisher(
+            ObstacleArray,
+            '/obstacles',
+            10
+        )
 
-    def position_callback(self, msg):
-        self.current_position = msg
-
-    def detection_callback(self, msg, class_is_obstacle=False):
+    def detection_callback(self, msg):
         # Callback function to handle incoming detection messages
-
         detections = msg.detections
-        dynamic_detections = self.check_for_dynamic_objects(detections)
-        if self.publisher_count == 1:
-            self.create_obstacles_and_publish(dynamic_detections, msg)
-        else:
-            for index in range(len(self.publisher_count)):
-                indexed_detections = self.get_indexed_detections(index, dynamic_detections)
-                self.create_obstacles_and_publish(indexed_detections, msg, index)
-
-    def check_for_dynamic_objects(self, detections):
-        dynamic_detections = []
-        if not len(self.dynamic_objects) or self.semantic_classification in ["unary", "all"]:
-            return detections
-
-        for d in detections:
-            if d.class_id in self.dynamic_objects or d.class_name in self.dynamic_objects:
-                dynamic_detections.append(d)
-        return dynamic_detections
-
-    def get_indexed_detections(self, index, detections):
-        index_range = (self.max_range - self.min_range) / self.publisher_count
-        max_range = (self.min_range + index_range) * (index+1)
-        min_range = (self.min_range + index_range) * index
-        index_detections = []
-        for d in detections:
-            detection = d.bbox3d
-            center = self.convert_pose_to_point(detection.center)
-            # TODO: should we consider z distance?
-            distance = math.sqrt((center.x - self.current_position.x)**2 + (center.y - self.current_position.y)**2 + (center.z - self.current_position.z)**2)
-            if min_range <= distance <= max_range:
-                index_detections.append(d)
-        return index_detections
+        self.create_obstacles_and_publish(detections, msg)
 
     def create_obstacles_and_publish(self, detections, input_msg, publisher_index=-1):
         # TODO TRANSFORM - see get_transform from yolo_v8 detect_3d_node
+        # detections = input_msg.detections
         obstacle_msg = ObstacleArray()
         obstacle_msg.header = input_msg.header
         detection_frame = False
@@ -145,11 +77,7 @@ class DetectionConverterNode(Node):
             obstacle_msg.header.frame_id = detection_frame
 
         obstacle_msg.obstacles = track_list
-        if publisher_index == -1:
-            publisher = self.publisher
-        else:
-            publisher = self.all_publishers[publisher_index]
-        publisher.publish(obstacle_msg)
+        self.publisher.publish(obstacle_msg)
 
     @staticmethod
     def convert_pose_to_point(pose):
@@ -181,6 +109,7 @@ class DetectionConverterNode(Node):
     def convert_pose_to_vector(pose):
         # TODO
         return Vector3()
+
 
 def main(args=None):
     rclpy.init(args=args)

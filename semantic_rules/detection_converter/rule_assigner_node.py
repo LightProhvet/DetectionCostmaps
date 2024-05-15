@@ -18,8 +18,8 @@ class RuleAssignerNode(Node):
             namespace='',
             parameters=[
                 # input params
-                ('sequence', 1),  # TODO: implement sequence
                 ('publisher_count', 3),
+                ('sequence', 1),  # TODO: implement sequence
                 # ranges are not used with publisher_count == 1
                 ('min_range', Parameter.Type.DOUBLE),
                 ('max_range', 6.0),
