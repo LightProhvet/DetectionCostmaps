@@ -113,7 +113,7 @@ def generate_launch_description():
         "maximum_detection_threshold")
     maximum_detection_threshold_cmd = DeclareLaunchArgument(
         "maximum_detection_threshold",
-        default_value="0.3",
+        default_value="0.6",
         description="Maximum detection threshold in the z axis")
 
     namespace = LaunchConfiguration("namespace")

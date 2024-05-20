@@ -55,7 +55,10 @@ class Detect3DNode(LifecycleNode):
                                QoSReliabilityPolicy.BEST_EFFORT)
         self.declare_parameter("depth_info_reliability",
                                QoSReliabilityPolicy.BEST_EFFORT)
-        
+
+        self.declare_parameter("unknown_is_max", True)
+        self.declare_parameter("max_detection_range", 6.0)
+
         # aux
         self.tf_buffer = Buffer()
         self.cv_bridge = CvBridge()
@@ -72,6 +75,11 @@ class Detect3DNode(LifecycleNode):
             "depth_image_units_divisor").get_parameter_value().integer_value
         dimg_reliability=self.get_parameter(
                 "depth_image_reliability").get_parameter_value().integer_value
+
+        self.unknown_is_max = self.get_parameter(
+            "unknown_is_max")._value
+        self.max_detection_range = self.get_parameter(
+            "max_detection_range").get_parameter_value().double_value
         
         self.depth_image_qos_profile = QoSProfile(
             reliability=dimg_reliability,
@@ -209,12 +217,16 @@ class Detect3DNode(LifecycleNode):
 
         roi = depth_image[v_min:v_max, u_min:u_max] / \
             self.depth_image_units_divisor  # convert to meters
+        if self.unknown_is_max:
+            roi[roi == 0] = self.max_detection_range
         if not np.any(roi):
             return None
         try:
             # find the z coordinate on the 3D BB
             bb_center_z_coord = depth_image[int(center_y)][int(
                 center_x)] / self.depth_image_units_divisor
+            if bb_center_z_coord == 0 and self.unknown_is_max:
+                bb_center_z_coord = self.max_detection_range
             z_diff = np.abs(roi - bb_center_z_coord)
             mask_z = z_diff <= self.maximum_detection_threshold
             if not np.any(mask_z):
