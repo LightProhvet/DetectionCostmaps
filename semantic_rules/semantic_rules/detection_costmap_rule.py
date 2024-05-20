@@ -33,6 +33,8 @@ class SemanticCostmapRule(Node):
     _dynamic_objects = {} # (class: category) - dict gives the fastest lookup (?) and doesn't need 3 containers
 
     testing = False  # use testing loggers
+    static_size = True
+    o_size = (0.5, 0.5, 1.6)
 
     def _validate_params(self):
         # TODO: fix substring mathcing in list
@@ -109,12 +111,6 @@ class SemanticCostmapRule(Node):
         # if self.rule_type != 'custom' and (self.max_range-self.min_range) <= 1 / self.resolution:
         #     raise ValueError("Resolution must allow costs to fit in a unit vector. "
     #                      "That means you have to set a resolution: resolution >= 1 / (max_range - min_range)")
-        if self.rule_type != 'custom' and (self.max_range-self.min_range) != 1 / self.resolution and self.cost_type == 'direction_falloff':
-            warnings.warn("""
-            Resolution should allow costs to fit in a unit vector. 
-            Setting a resolution smaller than range difference results in an unintuitive
-            velocity usage. It is recommended to set params: resolution == 1 / (max_range - min_range)
-            """)
 
     def __init__(self):
         super().__init__('detection_costmap_rule')
@@ -136,7 +132,7 @@ class SemanticCostmapRule(Node):
                 ('falloff', 0.5),
                 ('min_range', 0),  # the start point distance (on costmap) from origin for a velocity of unit vector
                 ('velocity_segments', 10),  # number of costs to assign to a velocity.
-                ('velocity_duration', 1.0),
+                ('velocity_duration', 1.0),  # fixme: i'm a misnomer, i should be velocity_multiplier
                 # the duration for which the costs are calculated. Effectively velocity multiplier
                 # TODO: semantic classification params may all be removed, as it is handled by the converter node
                 # semantic classification params
@@ -272,7 +268,7 @@ class SemanticCostmapRule(Node):
                     custom - override "get_custom_falloff_costs" to apply your own falloff type
                 falloff (0-1 for *_percentage, x for linear) - determines the costs decrease each cell
                 min_range - determines the distance from object to apply costs
-                velocity_segments - determines the number of sub-vectors along the path. |v|=1 for distance_falloff
+                velocity_segments - determines the number of sub-vectors along the path. |v|=1 for direction_falloff
                 reverse_falloff applies costs from max_range -> min_range instead of min_range->max_range. 
             Practically like setting falloff negative with regular falloff type. However with custom, it enables some different approaches
         
@@ -405,7 +401,6 @@ class SemanticCostmapRule(Node):
         costmap.data = self.costmap.data
         if self.cost_type == 'custom':
             costs = self.get_custom_costs()
-
         else:
             costs = self._get_direction_costs()
         if self.direction_type == 'custom':
@@ -442,6 +437,9 @@ class SemanticCostmapRule(Node):
             original_object = trajectory.pop('original_obstacle')
             for center_point, cost in trajectory.items():
                 object_size = original_object.size
+                if self.static_size:
+                    object_size.x = 0.5
+                    object_size.y = 0.5
                 cmap_prob_dict = self.map_object_to_costmap(center_point, object_size, costmap)
                 full_cmap_prob_dict.update(cmap_prob_dict)
                 if self.testing:
@@ -476,6 +474,8 @@ class SemanticCostmapRule(Node):
                 trajectory_costs = self.correct_trajectory_to_object_size(obstacle, trajectory_costs)
                 # TODO: if 'sector' work, we can replace this with 'check_obstacle_attributes'...
                 o_size = (obstacle.size.x, obstacle.size.y, obstacle.size.z)
+                if self.static_size:
+                    o_size = self.o_size
                 # check if borders or biggest object increase - also removes border attributes from trajectory costs
                 for a, i in zip(border_attributes, range(1, len(border_attributes)+1)):
                     coordinate = trajectory_costs.pop(a)
@@ -709,7 +709,10 @@ class SemanticCostmapRule(Node):
         # Initialize list to store costs
         costs_along_trajectory = {}
         direction, magnitude = self.normalize_vector(velocity)
-        magnitude = magnitude * self.velocity_duration
+        if self.cost_type == 'velocity_falloff':
+            magnitude = magnitude * self.velocity_duration
+        if self.cost_type == 'direction_falloff':
+            magnitude = self.velocity_duration
         # vector_costs = self.costs_to_vector(velocity, costs, is_tuple=is_tuple)  # maps cost to vector not point
         # Calculate cost for each point along the trajectory
         current_point = Point()
@@ -725,13 +728,14 @@ class SemanticCostmapRule(Node):
         for i in range(len(costs)):
             # Calculate magnitude of velocity vector at this point
             if self.cost_type == 'velocity_falloff':
-                current_point.x = origin_point.x + direction.x*magnitude*i/len(costs) + direction.x * self.min_range / self.resolution
-                current_point.y = origin_point.y + direction.y*magnitude*i/len(costs) + direction.y * self.min_range / self.resolution
-                current_point.z = origin_point.z + direction.z*magnitude*i/len(costs) + direction.z * self.min_range / self.resolution
-            elif self.cost_type == 'distance_falloff':
-                current_point.x = origin_point.x + direction.x*i + direction.x * self.min_range / self.resolution
-                current_point.y = origin_point.y + direction.y*i + direction.y * self.min_range / self.resolution
-                current_point.z = origin_point.z + direction.z*i + direction.z * self.min_range / self.resolution
+                # should min distance be in m for velocity falloff, or in costmap cells as in direction_falloff?
+                current_point.x = origin_point.x + direction.x * magnitude * i / len(costs) + direction.x * self.min_range
+                current_point.y = origin_point.y + direction.y * magnitude * i / len(costs) + direction.y * self.min_range
+                current_point.z = origin_point.z + direction.z * magnitude * i / len(costs) + direction.z * self.min_range
+            elif self.cost_type == 'direction_falloff':
+                current_point.x = origin_point.x + direction.x * magnitude * i + direction.x * self.min_range
+                current_point.y = origin_point.y + direction.y * magnitude * i + direction.y * self.min_range
+                current_point.z = origin_point.z + direction.z * magnitude * i + direction.z * self.min_range
             # Append cost and current point to the dictionary
             # we cannot use Point as key so we transfer to tuple after all. But i think it's better to use Point in gen.
             key_point = current_point.x, current_point.y, current_point.z
@@ -905,7 +909,7 @@ class SemanticCostmapRule(Node):
                         transformed_coords['original_obstacle'] = cost  # actually this is object for filling costmap
                 transformed_dict[key] = transformed_coords
         return transformed_dict
-    
+
     def fix_costmap(self, costmap):
         if costmap.info.width != self.width:
             costmap.info.width = self.width
@@ -929,6 +933,9 @@ class SemanticCostmapRule(Node):
     @staticmethod
     def check_obstacle_attributes(obstacle, border_attributes, size_attributes, trajectory_costs, direction_costs):
         o_size = (obstacle.size.x, obstacle.size.y, obstacle.size.z)
+        static_size = True
+        if static_size:
+            o_size = (0.5, 0.5, 1.6)
         # check if borders or biggest object increase - also removes border attributes from trajectory costs
         for a, i in zip(border_attributes, range(1, len(border_attributes) + 1)):
             coordinate = trajectory_costs.pop(a)

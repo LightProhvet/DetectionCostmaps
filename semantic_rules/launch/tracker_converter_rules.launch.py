@@ -12,11 +12,6 @@ def generate_launch_description():
     #
     # Command-line args?
     #
-    model = LaunchConfiguration("model")  # TODO: why is this needed?
-    model_cmd = DeclareLaunchArgument(
-        "model",
-        default_value="yolov8m.pt",
-        description="Model name or path")
 
     #
     # NODE ARGS
@@ -25,13 +20,7 @@ def generate_launch_description():
     obstacle_topic = "detection"
     detections_topic = "/yolo/detections_3d"
 
-    parameters_dto = [{
-        "semantic_classification": "binary",
-        "publisher_count": 1,
-        "min_range": 0.0,
-        "max_range": 20.0,
-        # "dynamic_objects": [],
-    }]
+    parameters_dto = []
     remappings_dto = [
         ('/obstacles', obstacle_topic),
         ('/detections_3d', detections_topic),
@@ -43,25 +32,31 @@ def generate_launch_description():
         'kf_hungarian.yaml'
     )
     tracker_remappings = [
-            # ("tracking", "kf_tracking"),
+            ("tracking", "kf_tracking"),
             # ("detection", "/yolo/detections_3d")
     ]
+    # rule assigner
 
     assigner_parameters = [{
         'publisher_count': 3,
-        'min_range': 0,
-        'max_range': 6,
+        'min_range': 0.0,
+        'max_range': 6.0,
         'semantic_classification': "all",
 
     }]
+    assigner_remappings = [
+        ("tracking", "kf_tracking"),
+    ]
+
     # semantic rules
     # TODO: rule params to config
     rule1_parameters = [{
         'direction_type': 'front',
+        'reverse_falloff': False,
         'cost_type': 'velocity_falloff',
         'falloff_type': 'abs_percentage',
-        'base_cost': 20.0,
-        'falloff': -0.20,
+        'base_cost': 50.0,
+        'falloff': 0.20,
         'min_range': 0,
         'velocity_segments': 5,
         'velocity_duration': 1.0,
@@ -69,22 +64,24 @@ def generate_launch_description():
     rule2_parameters = [{
         'direction_type': 'front',
         'cost_type': 'velocity_falloff',
-        'falloff_type': 'abs_percentage',
-        'base_cost': 20.0,
-        'falloff': -0.30,
+        'falloff_type': 'linear',
+        'reverse_falloff': True,
+        'base_cost': 80.0,
+        'falloff': 5.0,
         'min_range': 0,
-        'velocity_segments': 5,
-        'velocity_duration': 3,
+        'velocity_segments': 10,
+        'velocity_duration': 3.0,
     }]
     rule3_parameters = [{
         'direction_type': 'front',
         'cost_type': 'direction_falloff',
+        'reverse_falloff': True,
         'falloff_type': 'abs_percentage',
-        'base_cost': 20.0,
-        'falloff': -0.50,
+        'base_cost': 80.0,
+        'falloff': 0.10,
         'min_range': 0,
-        'velocity_segments': 5,
-        'velocity_duration': 5,
+        'velocity_segments': 24,
+        'velocity_duration': 12.0,
     }]
 
     rule1_remappings = [
@@ -120,22 +117,28 @@ def generate_launch_description():
         package=package_name,
         name='rule_assigner_node',
         executable='rule_assigner_node',
-        parameters=[tracker_config],
-        remappings=tracker_remappings
+        parameters=assigner_parameters,
+        remappings=assigner_remappings
     )
 
     rule1 = Node(
-            package=package_name, executable='detection_costmap_rule', output='screen',
-            parameters=rule1_parameters,
-            remappings=rule1_remappings)
+        package=package_name,
+        name='to2_meter_rule',
+        executable='detection_costmap_rule', output='screen',
+        parameters=rule1_parameters,
+        remappings=rule1_remappings)
     rule2 = Node(
-            package=package_name, executable='detection_costmap_rule', output='screen',
-            parameters=rule2_parameters,
-            remappings=rule2_remappings)
+        package=package_name,
+        name='to4_meter_rule',
+        executable='detection_costmap_rule',
+        output='screen',
+        parameters=rule2_parameters,
+        remappings=rule2_remappings)
     rule3 = Node(
-            package=package_name, executable='detection_costmap_rule', output='screen',
-            parameters=rule3_parameters,
-            remappings=rule3_remappings)
+        name='to6_meter_rule',
+        package=package_name, executable='detection_costmap_rule', output='screen',
+        parameters=rule3_parameters,
+        remappings=rule3_remappings)
 
     ld = LaunchDescription()
 
