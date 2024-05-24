@@ -1,0 +1,6 @@
+<library path="semantic_layers_plugin_core">
+<!--    name="semantic_rules::SemanticLayer"  ?-->
+    <class name="semantic_costmap::SemanticLayer" type="semantic_costmap::SemanticLayer" base_class_type="nav2_costmap_2d::Layer">
+        <description>Listens to OccupancyGrid messages and copies them in, meant to listen semantic rules</description>
+    </class>
+</library>

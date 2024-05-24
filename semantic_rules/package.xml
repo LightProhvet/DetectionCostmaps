@@ -20,5 +20,6 @@
 
   <export>
     <build_type>ament_python</build_type>
+    <costmap_2d plugin="${prefix}/semantic_layer.xml"/>
   </export>
 </package>
