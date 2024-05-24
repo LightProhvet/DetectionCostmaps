@@ -38,9 +38,9 @@ def generate_launch_description():
     # rule assigner
 
     assigner_parameters = [{
-        'publisher_count': 2,
+        'publisher_count': 3,
         'min_range': 0.0,
-        'max_range': 4.0,
+        'max_range': 5.0,
         'semantic_classification': "binary",
 
     }]
@@ -67,27 +67,33 @@ def generate_launch_description():
     }]
     rule2_parameters = [{
         'direction_type': 'front',
-        'cost_type': 'direction_falloff',
+        'cost_type': 'velocity_falloff',
         'falloff_type': 'linear',
-        'reverse_falloff': False,
+        'reverse_falloff': True,
         'base_cost': 80.0,
-        'falloff': 4.0,
+        'falloff': 10.0,
         'min_range': 0,
-        'velocity_segments': 15,
-        'velocity_duration': 0.1,
-        'use_sim_time': False
+        'velocity_segments': 4,
+        'velocity_duration': 2.0,
+        'use_sim_time': False,
+        'resolution': 0.1,
+        'width': 100,
+        'height': 100
     }]
     rule3_parameters = [{
         'direction_type': 'front',
         'cost_type': 'direction_falloff',
-        'reverse_falloff': False,
+        'reverse_falloff': True,
         'falloff_type': 'rel_percentage',
         'base_cost': 80.0,
         'falloff': 0.10,
         'min_range': 0,
-        'velocity_segments': 1,
-        'velocity_duration': 0.1,
+        'velocity_segments': 4,
+        'velocity_duration': 0.8,
         'use_sim_time': False,
+        'resolution': 0.1,
+        'width': 100,
+        'height': 100
     }]
 
     rule1_remappings = [
@@ -154,6 +160,6 @@ def generate_launch_description():
     ld.add_action(rule_assigner_node)
     ld.add_action(rule1)
     ld.add_action(rule2)
-    # ld.add_action(rule3)
+    ld.add_action(rule3)
 
     return ld
