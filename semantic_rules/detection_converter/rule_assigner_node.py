@@ -69,10 +69,10 @@ class RuleAssignerNode(Node):
         obstacles = msg.obstacles
         dynamic_obstacles = self.check_for_dynamic_objects(obstacles)
         for index in range(self.publisher_count):
-            self.get_logger().info(F"Getting objects: {dynamic_obstacles}")
+            # self.get_logger().info(F"Getting objects: {dynamic_obstacles}")
 
             indexed_obstacles = self.get_indexed_obstacles(index, dynamic_obstacles)
-            self.get_logger().info(F"Getting indexes: {indexed_obstacles}")
+            # self.get_logger().info(F"Getting indexes: {indexed_obstacles}")
             if not indexed_obstacles:
                 continue
             publisher = self.all_publishers[index]

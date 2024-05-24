@@ -40,8 +40,8 @@ def generate_launch_description():
     assigner_parameters = [{
         'publisher_count': 3,
         'min_range': 0.0,
-        'max_range': 6.0,
-        'semantic_classification': "all",
+        'max_range': 3.0,
+        'semantic_classification': "binary",
 
     }]
     assigner_remappings = [
@@ -54,39 +54,45 @@ def generate_launch_description():
         'direction_type': 'front',
         'reverse_falloff': False,
         'cost_type': 'velocity_falloff',
-        'falloff_type': 'abs_percentage',
-        'base_cost': 50.0,
-        'falloff': 0.20,
+        'falloff_type': 'linear',
+        'base_cost': 80.0,
+        'falloff': 8.0,
         'min_range': 0,
-        'velocity_segments': 5,
-        'velocity_duration': 1.0,
+        'velocity_segments': 1,
+        'velocity_duration': 0.0,
+        'use_sim_time': False,
+        'resolution': 0.1,
+        'width': 100,
+        'height': 100
     }]
     rule2_parameters = [{
-        'direction_type': 'front',
-        'cost_type': 'velocity_falloff',
+        'directi    on_type': 'front',
+        'cost_type': 'direction_falloff',
         'falloff_type': 'linear',
-        'reverse_falloff': True,
+        'reverse_falloff': False,
         'base_cost': 80.0,
         'falloff': 5.0,
         'min_range': 0,
-        'velocity_segments': 10,
-        'velocity_duration': 3.0,
+        'velocity_segments': 1,
+        'velocity_duration': 0.1,
+        'use_sim_time': False
     }]
     rule3_parameters = [{
         'direction_type': 'front',
         'cost_type': 'direction_falloff',
-        'reverse_falloff': True,
-        'falloff_type': 'abs_percentage',
+        'reverse_falloff': False,
+        'falloff_type': 'rel_percentage',
         'base_cost': 80.0,
         'falloff': 0.10,
         'min_range': 0,
-        'velocity_segments': 24,
-        'velocity_duration': 12.0,
+        'velocity_segments': 1,
+        'velocity_duration': 0.1,
+        'use_sim_time': False,
     }]
 
     rule1_remappings = [
         ('costmap_publisher', '/costmap/rule1'),
-        ('tracking', "tracking1"),
+        ('tracking', "kf_tracking"),
     ]
     rule2_remappings = [
         ('costmap_publisher', '/costmap/rule2'),
@@ -145,9 +151,9 @@ def generate_launch_description():
     # ld.add_action(model_cmd)
     ld.add_action(detection_converter)
     ld.add_action(kf_hungarian_node)
-    ld.add_action(rule_assigner_node)
+    # ld.add_action(rule_assigner_node)
     ld.add_action(rule1)
-    ld.add_action(rule2)
-    ld.add_action(rule3)
+    # ld.add_action(rule2)
+    # ld.add_action(rule3)
 
     return ld

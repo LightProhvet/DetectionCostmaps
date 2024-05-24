@@ -33,6 +33,7 @@ class SemanticCostmapRule(Node):
     _dynamic_objects = {} # (class: category) - dict gives the fastest lookup (?) and doesn't need 3 containers
 
     testing = False  # use testing loggers
+    dynamic_params = False  #
     static_size = True
     o_size = (0.5, 0.5, 1.6)
 
@@ -108,6 +109,8 @@ class SemanticCostmapRule(Node):
         self.resolution = self.get_parameter("resolution").get_parameter_value().double_value
         self.width = self.get_parameter("width").get_parameter_value().integer_value
         self.height = self.get_parameter("height").get_parameter_value().integer_value
+        self.get_logger().info(F"I have set width and height: {[self.width, self.height]}")
+
         # if self.rule_type != 'custom' and (self.max_range-self.min_range) <= 1 / self.resolution:
         #     raise ValueError("Resolution must allow costs to fit in a unit vector. "
     #                      "That means you have to set a resolution: resolution >= 1 / (max_range - min_range)")
@@ -163,7 +166,7 @@ class SemanticCostmapRule(Node):
                 ('global_buffer_period', 5),
                 # general costmap params
                 # ('costmap_frame', 'map'),  # we actually use 'semantic_rule_dynamic_transform' currently
-                ('resolution', 0.1),
+                ('resolution', 0.01),
                 ('width', 30),  # 3x3 m space default - this is now obsolete as transform can increase this
                 ('height', 30),
                 # ('map_load_time', [sec, ns]),
@@ -173,6 +176,7 @@ class SemanticCostmapRule(Node):
                 ('height_filter', [-2.0, 2.0]),  # TODO: This is duplicated in the Hungarian tracker?
                 # ('cost_filter', Parameter.Type.DOUBLE),
                 # other custom params?
+                # ('use_sim_time', False),
                 # ('global_frame', "camera_link"),  # TODO #3: this is definitely necessary - implement
                 # ('process_noise_cov', [2., 2., 0.5]),
                 # ('top_down', False),
@@ -278,6 +282,7 @@ class SemanticCostmapRule(Node):
 
         self._check_params()
         self.height_filter = self.get_parameter("height_filter")._value
+        self.use_sim_time = self.get_parameter("use_sim_time")._value
         # TODO: add lambda choice?
         # self.falloff_type = self.get_parameter("falloff_type")._value
         # self.falloff = self.get_parameter("falloff")._value
@@ -318,10 +323,10 @@ class SemanticCostmapRule(Node):
             test_logging_data = [self.costmap.data]
             self.get_logger().info(f"Here is current data:{test_logging_data} \n\nEND DATA")
         # TODO: proper publsihing logic?
-        if self.obstacles:
-            if self.testing:
-                self.get_logger().info(F"PUblisehd message!!!!!!!!!!!!!!!!!")
-            self.costmap_publisher.publish(self.costmap)
+        # if self.obstacles:
+        if self.testing:
+            self.get_logger().info(F"PUblisehd message!!!!!!!!!!!!!!!!!")
+        self.costmap_publisher.publish(self.costmap)
 
     """    COSTMAP HANDLING    """
 
@@ -373,7 +378,8 @@ class SemanticCostmapRule(Node):
     # GETTERS
     # Get the costmap based on rule
     def get_costmap(self, msg, time_delta=False):
-        self._check_params()  # refreshes params and checks their validity - no need to check or set params again
+        if self.dynamic_params:
+            self._check_params()  # refreshes params and checks their validity - no need to check or set params again
 
         if self.rule_type == 'code':
             return self.get_custom_costmap(msg, time_delta)
@@ -410,6 +416,8 @@ class SemanticCostmapRule(Node):
         # create new frame for costmap
         costmap.header.frame_id = "semantic_rule_dynamic_transform"
         transformed_vector_costs = self.transform_dictionary_to_new_frame_and_publish(vector_costs, msg.header, "semantic_rule_dynamic_transform")
+        self.get_logger().info(f"Vector costs: {[v.keys() for k, v in vector_costs.items() if isinstance(v, dict)]}")
+        self.get_logger().info(f"Transformed costs: {[v.keys() for k, v in transformed_vector_costs.items() if isinstance(v, dict)]}")
         if self.testing:
             self.get_logger().info(f"\n\n\n\n Before i implement, let's see: {transformed_vector_costs}\n\n "
                                    f"This comes from origin: {[costmap.info.origin.position.x, costmap.info.origin.position.y, costmap.info.origin.position.z]}\n\n"
@@ -460,7 +468,7 @@ class SemanticCostmapRule(Node):
         border_attributes = ['min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z']
         size_attributes = ['min_size_x', 'max_size_x', 'min_size_y', 'max_size_y', 'min_size_z', 'max_size_z']
         sign = [1, 0]
-        defaults = [self.width*self.resolution, self.height*self.resolution, self.height*self.width*(self.resolution**2)]
+        defaults = [self.width * self.resolution, self.height * self.resolution, 0]  # self.height * self.width * (self.resolution ** 2)
         direction_costs = {}
         # set default borders and sizes.
         [direction_costs.update({a: sign[i % 2]*defaults[int((i-1)/2)], size_attributes[i-1]: 0}) for a, i in zip(border_attributes, range(1, len(border_attributes) + 1))]
@@ -702,6 +710,9 @@ class SemanticCostmapRule(Node):
         return cost_dict
 
     def calculate_costs_along_trajectory(self, start_point, velocity, costs, is_tuple=False):
+        """
+        Since the starting point is in object coordinate system, these costs are with object coordinates, not costmap coordinates
+        """
         # Calculate step size for each point
         step = 1 # (velocity[0] / num_points, velocity[1] / num_points, velocity[2] / num_points)
         if self.cost_type == 'custom':
@@ -773,8 +784,8 @@ class SemanticCostmapRule(Node):
             self.get_logger().info(f"We still haven't corrected trajectories for obstacle size....")
         return trajectory_costs
 
-    @staticmethod
-    def calculate_overlap_probability_2d(grid_cell, object_center, object_size):
+    # @staticmethod
+    def calculate_overlap_probability_2d(self, grid_cell, object_center, object_size):
         object_width = object_size[0]
         object_length = object_size[1]
         cell_x, cell_y = grid_cell
@@ -811,18 +822,19 @@ class SemanticCostmapRule(Node):
                 cmap_probability_dict[position] = int(round(prob*100, 8))
         return cmap_probability_dict
 
-    @staticmethod
-    def apply_cost_to_objects(probability_dict, cost):
+    def apply_cost_to_objects(self, probability_dict, cost):
         # probability dict uses integer probability to be suitable for direct list conversion
         cost_dict = {}  # probability_dict
         for key, value in probability_dict.items():
             cost_dict[key] = int(value/100*cost)  # TODO what is the proper cost?
+            if cost_dict[key] < 0:
+                self.get_logger().info(F"SET NEGATIVE COST?!?!?! {cost_dict[key]}")
         return cost_dict
 
     def costmap_dict_as_list(self, costmap_dict, costmap):
         width = costmap.info.width
         height = costmap.info.height
-        cost_list = [-1] * width*height  # costmap.data
+        cost_list = [-1] * width * height  # costmap.data
         # py_costmap = PyCostmap2D(costmap)
         for key, value in costmap_dict.items():
         # for (x, y), value in costmap_dict.items():
@@ -832,16 +844,43 @@ class SemanticCostmapRule(Node):
             if len(key) > 2 and not self.valid_height(key): # or self.valid_cost(value)
                 continue
             # py_costmap.setCost(key[0], key[1], value)
-            if self.testing:
+            try:
+                if self.testing:
+                    self.get_logger().info(f"wrong key maybe?: {key}")
+                    self.get_logger().info(f"SETTING COSTMAP: {[(key[0], key[1]), width, height]}")
+                cost_list[key[0]+key[1]*width] = value
+            except IndexError:
                 self.get_logger().info(f"wrong key maybe?: {key}")
                 self.get_logger().info(f"SETTING COSTMAP: {[(key[0], key[1]), width, height]}")
-            cost_list[key[0]+key[1]*width] = value
+                return []
         # data = py_costmap.costmap
         if self.testing:
             self.get_logger().info(f"\n\ndata for costmap: {[len(cost_list), type(cost_list)]}\n\n direct Costmap: {cost_list}\n\n")
         return cost_list
 
     """ Transform functions """
+
+    def apply_transform(self, coord_tuple, transform_msg=False, transform_matrix=False):
+        # Apply the translation and rotation to each coordinate tuple
+        transformed_dict = {}
+        if not transorm_matrix:
+            if not transform_msg:
+                raise InputError("No transform provided to apply")
+            translation = (transform_msg.transform.translation.x, transform_msg.transform.translation.y,
+                           transform_msg.transform.translation.z)
+            rotation = (
+            transform_msg.transform.rotation.x, transform_msg.transform.rotation.y, transform_msg.transform.rotation.z,
+            transform_msg.transform.rotation.w)
+
+            # Create the transformation matrix
+            transform_matrix = tf_transformations.concatenate_matrices(
+                tf_transformations.translation_matrix(translation),
+                tf_transformations.quaternion_matrix(rotation)
+                )
+        point = tf_transformations.translation_matrix(coord_tuple + (1,))
+        transformed_point = tf_transformations.concatenate_matrices(transform_matrix, point)
+        return tuple(transformed_point[:3, 3])  # Extract the x, y, z components
+
     def transform_dictionary_to_new_frame_and_publish(self, input_dict, input_header, new_frame_id='semantic_rule_dynamic_transform'):
         # Find the minimum x, y, and z values
         min_x = input_dict.get('min_x', 0)
@@ -849,7 +888,7 @@ class SemanticCostmapRule(Node):
         min_z = input_dict.get('min_z', 0)
         max_x = input_dict.get('max_x', 0)
         max_y = input_dict.get('max_y', 0)
-        # max_z = input_dict.get('max_z', 0)
+        max_z = input_dict.get('max_z', 0)
         min_size_x = input_dict.get('min_size_x', 0)  # TODO: should we consider only half of size, as we do in overlap?
         min_size_y = input_dict.get('min_size_y', 0)
         min_size_z = input_dict.get('min_size_z', 0)
@@ -864,23 +903,33 @@ class SemanticCostmapRule(Node):
             self.get_logger().info(f"\n\n\n\n Hello: {[max_x - (min_x + max(abs(min_size_x), abs(max_size_x))), max_y - (min_y + max(abs(min_size_y), abs(max_size_y)))]}\n or just min: {[min_x, min_y]}\n\n")
         # update costmap size, if necessarry:
         if (max_x - (min_x + max(abs(min_size_x), abs(max_size_x)))) / self.resolution > self.width:
-            self.width = int((max_x - (min_x + max(abs(min_size_x), abs(max_size_x))) / self.resolution)) + 1  # the +1 may be excessive
+            new_val = (max_x - (min_x + max(abs(min_size_x), abs(max_size_x)))) / self.resolution + 1  # the +1 may be excessive
+            if int(new_val) > self.width:  # I DON'T understand why we need this
+                self.get_logger().info(F"WE have set new width: {self.width} -> {int(new_val)}")
+                self.width = int(new_val)
         if (max_y - (min_y + max(abs(min_size_y), abs(max_size_y)))) / self.resolution > self.height:
-            self.height = int((max_y - (min_y + max(abs(min_size_y), abs(max_size_y)))) / self.resolution) + 1  # the +1 may be excessive
+            new_val = (max_y - (min_y + max(abs(min_size_y), abs(max_size_y)))) / self.resolution + 1  # the +1 may be excessive
+            if int(new_val) > self.height:  # I DON'T understand why we need this
+                self.get_logger().info(F"WE have set new height: {self.height} -> {int(new_val)}")
+                self.height = int(new_val)
 
         # Create a new transform message
         transform_msg = TransformStamped()
-        transform_msg.header.frame_id = new_frame_id
-        transform_msg.child_frame_id = input_header.frame_id  # Assuming header exists
-        transform_msg.header.stamp = input_header.stamp # self.get_clock().now().to_msg()
+        transform_msg.header.frame_id = input_header.frame_id  # new_frame_id
+        transform_msg.child_frame_id = new_frame_id # input_header.frame_id  # Assuming header exists
+        if self.use_sim_time:
+            transform_msg.header.stamp.sec = 0
+            transform_msg.header.stamp.nanosec = 0
+        else:
+            transform_msg.header.stamp = input_header.stamp # self.get_clock().now().to_msg()
         # todo: should we translate positive values? can this cause error?
         min_x = 0 if min_x > 0 else min_x
         min_y = 0 if min_y > 0 else min_y
         min_z = 0 if min_z > 0 else min_z
         # Set the translation
-        translation_x = transform_msg.transform.translation.x = -1 * (min_x - max(abs(min_size_x), abs(max_size_x)))
-        translation_y = transform_msg.transform.translation.y = -1 * (min_y - max(abs(min_size_y), abs(max_size_y)))
-        translation_z = transform_msg.transform.translation.z = 0.0 # -1 * (min_z - max(abs(min_size_z), abs(max_size_z)))
+        translation_x = transform_msg.transform.translation.x = 1.0 * (min_x - max(abs(min_size_x), abs(max_size_x))) - 3.0
+        translation_y = transform_msg.transform.translation.y = 1.0 * (min_y - max(abs(min_size_y), abs(max_size_y))) - 3.0
+        translation_z = transform_msg.transform.translation.z = 1.0 * (min_z - max(abs(min_size_z), abs(max_size_z))) - 3.0
 
         # Set the rotation (identity quaternion)
         transform_msg.transform.rotation.x = rot_x
@@ -900,9 +949,9 @@ class SemanticCostmapRule(Node):
                 for coord_tuple, cost in value.items():
                     if not isinstance(coord_tuple, str):
                         transformed_coord = (
-                            coord_tuple[0] + translation_x,
-                            coord_tuple[1] + translation_y,
-                            coord_tuple[2] + translation_z
+                            coord_tuple[0] - translation_x,
+                            coord_tuple[1] - translation_y,
+                            coord_tuple[2] - translation_z
                         )
                         transformed_coords[transformed_coord] = cost
                     elif coord_tuple == 'original_obstacle':
@@ -911,14 +960,17 @@ class SemanticCostmapRule(Node):
         return transformed_dict
 
     def fix_costmap(self, costmap):
-        if costmap.info.width != self.width:
-            costmap.info.width = self.width
-            # self.costmap.info.width = self.width
-        if costmap.info.height != self.height:
-            costmap.info.height = self.height
-            # self.costmap.info.height = self.height
-        if self.testing:
-            self.get_logger().info(f"FIXED COSTMAP: {[(costmap.info.width, costmap.info.height), (self.width, self.height)]}")
+        try:
+            if costmap.info.width != self.width:
+                costmap.info.width = self.width
+                # self.costmap.info.width = self.width
+            if costmap.info.height != self.height:
+                costmap.info.height = self.height
+                # self.costmap.info.height = self.height
+            if self.testing:
+                self.get_logger().info(f"FIXED COSTMAP: {[(costmap.info.width, costmap.info.height), (self.width, self.height)]}")
+        except AssertionError:
+            self.get_logger().info(f"FAILED FIX: {[(costmap.info.width, costmap.info.height), (self.width, self.height)]}")
         return costmap
 
     """  Validation functions """
