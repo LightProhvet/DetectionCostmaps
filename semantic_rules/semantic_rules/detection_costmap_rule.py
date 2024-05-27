@@ -416,17 +416,15 @@ class SemanticCostmapRule(Node):
         # create new frame for costmap
         costmap.header.frame_id = "semantic_rule_dynamic_transform"
         transformed_vector_costs = self.transform_dictionary_to_new_frame_and_publish(vector_costs, msg.header, "semantic_rule_dynamic_transform")
-        self.get_logger().info(f"Vector costs: {[v.keys() for k, v in vector_costs.items() if isinstance(v, dict)]}")
-        self.get_logger().info(f"Transformed costs: {[v.keys() for k, v in transformed_vector_costs.items() if isinstance(v, dict)]}")
         if self.testing:
-            self.get_logger().info(f"\n\n\n\n Before i implement, let's see: {transformed_vector_costs}\n\n "
+            self.get_logger().info(f"\n\n\n\n Transformed vector costs: {transformed_vector_costs}\n\n "
                                    f"This comes from origin: {[costmap.info.origin.position.x, costmap.info.origin.position.y, costmap.info.origin.position.z]}\n\n"
                                    f"and from cmap frame {costmap.header.frame_id} and obstacle frame {msg.header.frame_id}\n\n"
-                                   f"OKay, this should be fine... \n\n")
+                                   f"\n\n")
         costmap = self.fix_costmap(costmap)
         if len(transformed_vector_costs) == 0:
             if self.testing:
-                self.get_logger().info(F"\nHmmm.. we have no data...\n")
+                self.get_logger().info(F"\nWarning, we have no data\n")
             data = False
         else:
             data = self.fill_costmap(costmap, transformed_vector_costs)
@@ -828,7 +826,7 @@ class SemanticCostmapRule(Node):
         for key, value in probability_dict.items():
             cost_dict[key] = int(value/100*cost)  # TODO what is the proper cost?
             if cost_dict[key] < 0:
-                self.get_logger().info(F"SET NEGATIVE COST?!?!?! {cost_dict[key]}")
+                self.get_logger().info(F"WARNING: SETTING NEGATIVE COST: {cost_dict[key]}")
         return cost_dict
 
     def costmap_dict_as_list(self, costmap_dict, costmap):
@@ -846,11 +844,9 @@ class SemanticCostmapRule(Node):
             # py_costmap.setCost(key[0], key[1], value)
             try:
                 if self.testing:
-                    self.get_logger().info(f"wrong key maybe?: {key}")
                     self.get_logger().info(f"SETTING COSTMAP: {[(key[0], key[1]), width, height]}")
                 cost_list[key[0]+key[1]*width] = value
             except IndexError:
-                self.get_logger().info(f"wrong key maybe?: {key}")
                 self.get_logger().info(f"SETTING COSTMAP: {[(key[0], key[1]), width, height]}")
                 return []
         # data = py_costmap.costmap
@@ -904,13 +900,13 @@ class SemanticCostmapRule(Node):
         # update costmap size, if necessarry:
         if (max_x - (min_x + max(abs(min_size_x), abs(max_size_x)))) / self.resolution > self.width:
             new_val = (max_x - (min_x + max(abs(min_size_x), abs(max_size_x)))) / self.resolution + 1  # the +1 may be excessive
-            if int(new_val) > self.width:  # I DON'T understand why we need this
-                self.get_logger().info(F"WE have set new width: {self.width} -> {int(new_val)}")
+            if int(new_val) > self.width:  # I DON'T understand why we need this, but we do
+                self.get_logger().info(F"We have set new costmap width: {self.width} -> {int(new_val)}")
                 self.width = int(new_val)
         if (max_y - (min_y + max(abs(min_size_y), abs(max_size_y)))) / self.resolution > self.height:
             new_val = (max_y - (min_y + max(abs(min_size_y), abs(max_size_y)))) / self.resolution + 1  # the +1 may be excessive
             if int(new_val) > self.height:  # I DON'T understand why we need this
-                self.get_logger().info(F"WE have set new height: {self.height} -> {int(new_val)}")
+                self.get_logger().info(F"WE have set new costmap height: {self.height} -> {int(new_val)}")
                 self.height = int(new_val)
 
         # Create a new transform message
