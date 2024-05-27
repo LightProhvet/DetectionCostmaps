@@ -58,7 +58,7 @@ class Yolov8Node(LifecycleNode):
         self.declare_parameter("image_reliability",
                                QoSReliabilityPolicy.BEST_EFFORT)
         
-        self.declare_parameter("input_image_topic", "/camera/color/image_raw")
+        self.declare_parameter("input_image_topic", "/intel_realsense_r200_depth/image_raw")
 
         self.get_logger().info('Yolov8Node created')
 

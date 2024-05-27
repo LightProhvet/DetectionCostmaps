@@ -25,7 +25,7 @@ from rclpy.qos import QoSDurabilityPolicy
 from rclpy.qos import QoSReliabilityPolicy
 from rclpy.lifecycle import LifecycleNode
 from rclpy.lifecycle import TransitionCallbackReturn
-from rclpy.lifecycle import LifecycleState 
+from rclpy.lifecycle import LifecycleState
 
 import message_filters
 from cv_bridge import CvBridge
@@ -80,7 +80,7 @@ class Detect3DNode(LifecycleNode):
             "unknown_is_max")._value
         self.max_detection_range = self.get_parameter(
             "max_detection_range").get_parameter_value().double_value
-        
+
         self.depth_image_qos_profile = QoSProfile(
             reliability=dimg_reliability,
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -90,7 +90,7 @@ class Detect3DNode(LifecycleNode):
 
         dinfo_reliability=self.get_parameter(
                 "depth_info_reliability").get_parameter_value().integer_value
-        
+
         self.depth_info_qos_profile = QoSProfile(
             reliability=dinfo_reliability,
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -103,13 +103,13 @@ class Detect3DNode(LifecycleNode):
         self._pub = self.create_publisher(DetectionArray, "detections_3d", 10)
 
         return TransitionCallbackReturn.SUCCESS
-    
+
     def on_activate(self, state: LifecycleState) -> TransitionCallbackReturn:
         self.get_logger().info(f'Activating {self.get_name()}')
 
         # subs
         self.depth_sub = message_filters.Subscriber(
-            self, Image, "/camera/depth/image_rect_raw",
+            self, Image, "/intel_realsense_r200_depth/depth/image_raw",
             qos_profile=self.depth_image_qos_profile)
         self.depth_info_sub = message_filters.Subscriber(
             self, CameraInfo, "depth_info",
@@ -303,7 +303,10 @@ class Detect3DNode(LifecycleNode):
             transform: TransformStamped = self.tf_buffer.lookup_transform(
                 self.target_frame,
                 frame_id,
-                rclpy.time.Time())
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=1.0),
+            )
+
             translation = np.array([transform.transform.translation.x,
                                     transform.transform.translation.y,
                                     transform.transform.translation.z])

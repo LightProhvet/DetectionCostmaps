@@ -59,9 +59,8 @@ def generate_launch_description():
     input_image_topic_cmd = DeclareLaunchArgument(
         "input_image_topic",
         # default_value="/camera/rgb/image_raw",
-        default_value="/camera/color/image_raw",
+        default_value="/intel_realsense_r200_depth/image_raw",
         description="Name of the input image topic")
-
     image_reliability = LaunchConfiguration("image_reliability")
     image_reliability_cmd = DeclareLaunchArgument(
         "image_reliability",
@@ -73,7 +72,7 @@ def generate_launch_description():
     input_depth_topic_cmd = DeclareLaunchArgument(
         "input_depth_topic",
         # default_value="/camera/depth/image_raw",
-        default_value="/camera/depth/image_rect_raw",
+        default_value="/intel_realsense_r200_depth/depth/image_raw",
         description="Name of the input depth topic")
 
     depth_image_reliability = LaunchConfiguration("depth_image_reliability")
@@ -86,7 +85,7 @@ def generate_launch_description():
     input_depth_info_topic = LaunchConfiguration("input_depth_info_topic")
     input_depth_info_topic_cmd = DeclareLaunchArgument(
         "input_depth_info_topic",
-        default_value="/camera/depth/camera_info",
+        default_value="/intel_realsense_r200_depth/depth/camera_info",
         description="Name of the input depth info topic")
 
     depth_info_reliability = LaunchConfiguration("depth_info_reliability")
@@ -100,13 +99,13 @@ def generate_launch_description():
         "depth_image_units_divisor")
     depth_image_units_divisor_cmd = DeclareLaunchArgument(
         "depth_image_units_divisor",
-        default_value="1000",
+        default_value="1",
         description="Divisor used to convert the raw depth image values into metres")
 
     target_frame = LaunchConfiguration("target_frame")
     target_frame_cmd = DeclareLaunchArgument(
         "target_frame",
-        default_value="map",
+        default_value="camera_depth_frame",
         description="Target frame to transform the 3D boxes")
 
     maximum_detection_threshold = LaunchConfiguration(
@@ -162,7 +161,7 @@ def generate_launch_description():
             "maximum_detection_threshold": maximum_detection_threshold,
             "depth_image_units_divisor": depth_image_units_divisor,
             "depth_image_reliability": depth_image_reliability,
-            "depth_info_reliability": depth_info_reliability
+            "depth_info_reliability": depth_info_reliability,
         }],
         remappings=[
             ("depth_image", input_depth_topic),
