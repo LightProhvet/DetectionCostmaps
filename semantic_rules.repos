@@ -1,0 +1,13 @@
+repositories:
+  src/semantic_rules:
+    type: git
+    url: https://github.com/LightProhvet/semantic_rules.git
+    version: main
+  src/yolov8_ros:
+    type: git
+    url: https://github.com/LightProhvet/yolov8_ros.git
+    version: main
+  src/navigation2_dynamic:
+    type: git
+    url: https://github.com/LightProhvet/navigation2_dynamic.git
+    version: main
